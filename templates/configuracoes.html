@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+{% block title %}Configurações{% endblock %}
+{% block page_title %}Configurações{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+  <div class="row g-4">
+
+    <!-- DADOS DA EMPRESA -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="bi bi-shop-fill" style="color:#16A34A;"></i>
+            Dados do Negócio
+          </div>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:16px;">
+          <div>
+            <label class="form-label">Nome da Empresa</label>
+            <input type="text" class="form-control" id="cfgNome"
+              value="{{ cfg.nome_empresa or '' }}" placeholder="Ex: Hortifruti da Maria">
+          </div>
+          <div>
+            <label class="form-label">Cidade</label>
+            <input type="text" class="form-control" id="cfgCidade"
+              value="{{ cfg.cidade or '' }}" placeholder="Ex: Ibiá - MG">
+          </div>
+          <div>
+            <label class="form-label">Telefone / WhatsApp</label>
+            <input type="text" class="form-control" id="cfgTelefone"
+              value="{{ cfg.telefone or '' }}" placeholder="(34) 9xxxx-xxxx">
+          </div>
+          <button class="btn btn-primary" onclick="salvarGeral()" style="margin-top:auto;">
+            <i class="bi bi-check-lg"></i> Salvar Dados
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHAVE IA -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="bi bi-robot" style="color:#7C3AED;"></i>
+            Inteligência Artificial
+          </div>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:16px;">
+          <div class="alert alert-info" style="font-size:13px;">
+            <i class="bi bi-info-circle-fill"></i>
+            A IA lê pedidos em <strong>qualquer formato</strong> de email e identifica prefeituras automaticamente.
+            Obtenha sua chave gratuita em <strong>console.anthropic.com</strong>
+          </div>
+          <div>
+            <label class="form-label">Chave da API (Claude)</label>
+            <div class="input-group">
+              <input type="password" class="form-control" id="cfgApiKey"
+                value="{{ cfg.anthropic_api_key or '' }}" placeholder="sk-ant-...">
+              <span class="input-addon" onclick="toggleSenha('cfgApiKey')">
+                <i class="bi bi-eye-fill"></i>
+              </span>
+            </div>
+            <div style="margin-top:6px;font-size:12px;">
+              {% if cfg.anthropic_api_key %}
+              <span style="color:#16A34A;font-weight:600;"><i class="bi bi-check-circle-fill me-1"></i>Chave configurada — IA ativa</span>
+              {% else %}
+              <span style="color:#D97706;font-weight:600;"><i class="bi bi-exclamation-circle-fill me-1"></i>Sem chave — pedidos não serão lidos automaticamente</span>
+              {% endif %}
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="salvarGeral()" style="margin-top:auto;">
+            <i class="bi bi-check-lg"></i> Salvar Chave
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTAS DE EMAIL -->
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="bi bi-envelope-fill" style="color:#DC2626;"></i>
+            Contas de Email Configuradas
+            <span class="badge" style="background:#F1F5F9;color:#475569;">{{ email_cfgs|length }}</span>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="abrirModalEmail()">
+            <i class="bi bi-plus-circle"></i> Adicionar Email
+          </button>
+        </div>
+
+        <!-- AVISO IMPORTANTE -->
+        <div style="padding:16px 20px;background:#FFFBEB;border-bottom:1px solid #FDE68A;">
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <i class="bi bi-exclamation-triangle-fill" style="color:#D97706;margin-top:2px;flex-shrink:0;"></i>
+            <div style="font-size:13px;color:#92400E;">
+              <strong>Gmail e Hotmail exigem "Senha de Aplicativo"</strong> — a senha normal não funciona por segurança.<br>
+              <strong>Gmail:</strong> myaccount.google.com → Segurança → Verificação 2 etapas → Senhas de app → criar "Pedidos"<br>
+              <strong>Hotmail:</strong> account.microsoft.com → Segurança → Opções avançadas → Senhas de aplicativo
+            </div>
+          </div>
+        </div>
+
+        {% if email_cfgs %}
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Email</th>
+                <th>Servidor IMAP</th>
+                <th>Status</th>
+                <th style="width:120px;">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ec in email_cfgs %}
+              <tr>
+                <td><strong>{{ ec.nome }}</strong></td>
+                <td style="color:var(--text-secondary);">{{ ec.email_address }}</td>
+                <td style="font-size:12px;color:var(--text-muted);font-family:monospace;">
+                  {{ ec.imap_server }}:{{ ec.imap_port }}
+                </td>
+                <td>
+                  {% if ec.ativa %}
+                  <span class="badge badge-ativo"><i class="bi bi-circle-fill" style="font-size:7px;"></i> Ativo</span>
+                  {% else %}
+                  <span class="badge badge-inativo">Inativo</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div style="display:flex;gap:6px;">
+                    <button class="btn btn-secondary btn-sm" onclick="testarEmailId({{ ec.id }})" id="btnTestar{{ ec.id }}">
+                      <i class="bi bi-wifi"></i> Testar
+                    </button>
+                    <button class="btn btn-sm btn-icon"
+                      style="background:#FFF1F2;color:#DC2626;border:1px solid #FECACA;"
+                      onclick="removerEmail({{ ec.id }})">
+                      <i class="bi bi-trash-fill"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:40px;">
+          <div class="empty-icon"><i class="bi bi-envelope-slash"></i></div>
+          <h3>Nenhum email configurado</h3>
+          <p>Adicione os emails que recebem pedidos das prefeituras.</p>
+        </div>
+        {% endif %}
+
+        <div id="testeResultado" style="padding:12px 20px;display:none;"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL NOVO EMAIL -->
+<div class="modal fade" id="modalEmail" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title"><i class="bi bi-envelope-plus-fill" style="color:#DC2626;"></i> Adicionar Conta de Email</div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Nome para identificar esta conta</label>
+            <input type="text" class="form-control" id="emailNome" placeholder="Ex: Gmail Pedidos, Hotmail Fortumel">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Email <span class="required">*</span></label>
+            <input type="email" class="form-control" id="emailAddr"
+              placeholder="seuemail@gmail.com" oninput="autoDetectar()">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Senha de Aplicativo <span class="required">*</span></label>
+            <div class="input-group">
+              <input type="password" class="form-control" id="emailSenha" placeholder="••••••••••••••••">
+              <span class="input-addon" onclick="toggleSenha('emailSenha')"><i class="bi bi-eye-fill"></i></span>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Servidor IMAP</label>
+            <input type="text" class="form-control" id="emailServidor" placeholder="imap.gmail.com">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Porta</label>
+            <input type="number" class="form-control" id="emailPorta" value="993">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Pasta</label>
+            <input type="text" class="form-control" id="emailPasta" value="INBOX">
+          </div>
+        </div>
+        <div id="modalTesteResult" class="mt-3" style="display:none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-secondary" onclick="testarNovoEmail()">
+          <i class="bi bi-wifi"></i> Testar Conexão
+        </button>
+        <button class="btn btn-primary" onclick="salvarEmail()">
+          <i class="bi bi-check-lg"></i> Salvar Email
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const servidores = {
+  'gmail.com':       ['imap.gmail.com', 993],
+  'googlemail.com':  ['imap.gmail.com', 993],
+  'outlook.com':     ['imap-mail.outlook.com', 993],
+  'hotmail.com':     ['imap-mail.outlook.com', 993],
+  'live.com':        ['imap-mail.outlook.com', 993],
+  'yahoo.com':       ['imap.mail.yahoo.com', 993],
+  'yahoo.com.br':    ['imap.mail.yahoo.com', 993],
+};
+
+function autoDetectar() {
+  const email = document.getElementById('emailAddr').value;
+  const dominio = (email.split('@')[1] || '').toLowerCase();
+  if (servidores[dominio]) {
+    document.getElementById('emailServidor').value = servidores[dominio][0];
+    document.getElementById('emailPorta').value = servidores[dominio][1];
+  }
+}
+
+function toggleSenha(id) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+function abrirModalEmail() {
+  ['emailNome','emailAddr','emailSenha'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('emailServidor').value = 'imap.gmail.com';
+  document.getElementById('emailPorta').value = '993';
+  document.getElementById('emailPasta').value = 'INBOX';
+  document.getElementById('modalTesteResult').style.display = 'none';
+  new bootstrap.Modal(document.getElementById('modalEmail')).show();
+}
+
+async function salvarGeral() {
+  const payload = {
+    nome_empresa:       document.getElementById('cfgNome').value,
+    cidade:             document.getElementById('cfgCidade').value,
+    telefone:           document.getElementById('cfgTelefone').value,
+    anthropic_api_key:  document.getElementById('cfgApiKey').value,
+  };
+  try {
+    await api('/api/configuracoes/geral', 'POST', payload);
+    toast('Configurações salvas com sucesso!');
+    setTimeout(() => location.reload(), 1200);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function salvarEmail() {
+  const payload = {
+    nome:           document.getElementById('emailNome').value || document.getElementById('emailAddr').value,
+    email_address:  document.getElementById('emailAddr').value,
+    email_password: document.getElementById('emailSenha').value,
+    imap_server:    document.getElementById('emailServidor').value,
+    imap_port:      document.getElementById('emailPorta').value,
+    pasta:          document.getElementById('emailPasta').value,
+  };
+  if (!payload.email_address || !payload.email_password) {
+    toast('Preencha o email e a senha.', 'error'); return;
+  }
+  try {
+    await api('/api/configuracoes/email', 'POST', payload);
+    toast('Email salvo!');
+    setTimeout(() => location.reload(), 1000);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function testarNovoEmail() {
+  const el = document.getElementById('modalTesteResult');
+  el.style.display = 'block';
+  el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;color:var(--text-muted);"><div class="spinner" style="width:18px;height:18px;border-width:2px;margin:0;"></div> Testando conexão...</div>';
+  const payload = {
+    email_address:  document.getElementById('emailAddr').value,
+    email_password: document.getElementById('emailSenha').value,
+    imap_server:    document.getElementById('emailServidor').value,
+    imap_port:      document.getElementById('emailPorta').value,
+  };
+  try {
+    const data = await api('/api/configuracoes/email/testar', 'POST', payload);
+    el.innerHTML = data.ok
+      ? `<div class="alert alert-success mb-0"><i class="bi bi-check-circle-fill"></i> ${data.mensagem}</div>`
+      : `<div class="alert alert-danger mb-0"><i class="bi bi-x-circle-fill"></i> ${data.mensagem}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="alert alert-danger mb-0">${e.message}</div>`;
+  }
+}
+
+async function testarEmailId(emailId) {
+  const btn = document.getElementById(`btnTestar${emailId}`);
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;margin:0 auto;"></div>';
+  const el = document.getElementById('testeResultado');
+  el.style.display = 'block';
+  try {
+    const data = await api(`/api/configuracoes/email/testar-id/${emailId}`, 'POST');
+    el.innerHTML = data.ok
+      ? `<div class="alert alert-success mb-0"><i class="bi bi-check-circle-fill"></i> ${data.mensagem}</div>`
+      : `<div class="alert alert-warning mb-0"><i class="bi bi-exclamation-triangle-fill"></i> ${data.mensagem} — <a href="https://myaccount.google.com/apppasswords" target="_blank">Criar senha de app</a></div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="alert alert-danger mb-0">${e.message}</div>`;
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-wifi"></i> Testar';
+}
+
+async function removerEmail(id) {
+  if (!confirm('Remover esta conta de email?')) return;
+  await api(`/api/configuracoes/email/${id}`, 'DELETE');
+  toast('Email removido.');
+  setTimeout(() => location.reload(), 800);
+}
+</script>
+{% endblock %}

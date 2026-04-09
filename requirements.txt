@@ -1,0 +1,16 @@
+flask==3.0.3
+flask-sqlalchemy==3.1.1
+anthropic==0.34.2
+reportlab==4.2.2
+python-dotenv==1.0.1
+imapclient==3.0.1
+email-validator==2.2.0
+Pillow==10.4.0
+requests==2.32.3
+openpyxl==3.1.5
+pdfplumber==0.11.4
+python-docx==1.1.2
+beautifulsoup4==4.12.3
+gunicorn==22.0.0
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.36

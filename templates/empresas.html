@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Empresas{% endblock %}
+{% block page_title %}Empresas Distribuidoras{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+
+  <div class="alert alert-info mb-4" style="display:flex;align-items:flex-start;gap:12px;">
+    <i class="bi bi-info-circle-fill" style="font-size:20px;flex-shrink:0;margin-top:2px;"></i>
+    <div>
+      <strong>Como funciona:</strong> Cadastre as 3 empresas aqui, depois vá em
+      <a href="/prefeituras" style="color:#1e40af;font-weight:700;">Prefeituras</a>
+      e vincule cada prefeitura à empresa responsável pelo contrato.
+      O vale de entrega será gerado automaticamente no nome correto da empresa.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <i class="bi bi-buildings-fill" style="color:#16A34A;"></i>
+        Empresas Distribuidoras
+        <span class="badge" style="background:#F1F5F9;color:#475569;">{{ empresas|length }}</span>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="abrirModal()">
+        <i class="bi bi-plus-circle"></i> Nova Empresa
+      </button>
+    </div>
+
+    {% if empresas %}
+    <div style="padding:0;">
+      {% for e in empresas %}
+      <div style="padding:18px 20px;border-bottom:1px solid var(--border2);{% if loop.last %}border-bottom:none;{% endif %}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+              <div style="width:42px;height:42px;background:linear-gradient(135deg,var(--g500),var(--g700));border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;flex-shrink:0;">
+                🏢
+              </div>
+              <div>
+                <div style="font-size:16px;font-weight:800;color:var(--txt1);">{{ e.nome }}</div>
+                <div style="font-size:12px;color:var(--txt3);">
+                  {% if e.cnpj %}CNPJ: {{ e.cnpj }}{% endif %}
+                  {% if e.telefone %} · Tel: {{ e.telefone }}{% endif %}
+                </div>
+              </div>
+            </div>
+
+            <!-- Prefeituras vinculadas -->
+            {% set prefs = e.prefeituras | selectattr('ativa') | list %}
+            {% if prefs %}
+            <div style="margin-top:10px;">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--txt3);margin-bottom:6px;">
+                Prefeituras vinculadas ({{ prefs|length }})
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                {% for p in prefs %}
+                <span style="background:#EFF6FF;color:#1D4ED8;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid #BFDBFE;">
+                  <i class="bi bi-building-fill" style="font-size:10px;"></i> {{ p.nome }}
+                </span>
+                {% endfor %}
+              </div>
+            </div>
+            {% else %}
+            <div style="margin-top:8px;padding:8px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;font-size:12px;color:#92400E;display:inline-flex;align-items:center;gap:6px;">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              Nenhuma prefeitura vinculada ainda —
+              <a href="/prefeituras" style="color:#92400E;font-weight:700;">ir para Prefeituras</a>
+            </div>
+            {% endif %}
+          </div>
+
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="btn btn-secondary btn-sm btn-icon"
+              onclick='editarEmpresa({{ e.to_dict()|tojson }})' title="Editar">
+              <i class="bi bi-pencil-fill"></i>
+            </button>
+            <button class="btn btn-sm btn-icon"
+              style="background:#FFF1F2;color:#DC2626;border:1px solid #FECACA;"
+              onclick="desativar({{ e.id }}, '{{ e.nome }}')" title="Remover">
+              <i class="bi bi-trash-fill"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bi bi-buildings"></i></div>
+      <h3>Nenhuma empresa cadastrada</h3>
+      <p>Cadastre as 3 empresas distribuidoras para começar. Os vales de entrega serão gerados no nome correto de cada empresa.</p>
+      <button class="btn btn-primary" onclick="abrirModal()">
+        <i class="bi bi-plus-circle"></i> Cadastrar Primeira Empresa
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal fade" id="modalEmp" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title" id="modalEmpTitulo">Nova Empresa</div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="empId">
+        <div style="margin-bottom:14px;">
+          <label class="form-label">Nome da Empresa <span class="required">*</span></label>
+          <input type="text" class="form-control" id="empNome" placeholder="Ex: Profeta Distribuidora, Fortumel">
+        </div>
+        <div style="margin-bottom:14px;">
+          <label class="form-label">CNPJ</label>
+          <input type="text" class="form-control" id="empCnpj" placeholder="00.000.000/0001-00">
+        </div>
+        <div style="margin-bottom:14px;">
+          <label class="form-label">Telefone</label>
+          <input type="text" class="form-control" id="empTelefone" placeholder="(34) 9xxxx-xxxx">
+        </div>
+        <div>
+          <label class="form-label">Endereço</label>
+          <input type="text" class="form-control" id="empEndereco" placeholder="Rua, número, cidade">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvarEmpresa()">
+          <i class="bi bi-check-lg"></i> Salvar Empresa
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function abrirModal() {
+  ['empId','empNome','empCnpj','empTelefone','empEndereco'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('modalEmpTitulo').textContent = 'Nova Empresa';
+  new bootstrap.Modal(document.getElementById('modalEmp')).show();
+}
+
+function editarEmpresa(e) {
+  document.getElementById('empId').value = e.id;
+  document.getElementById('empNome').value = e.nome || '';
+  document.getElementById('empCnpj').value = e.cnpj || '';
+  document.getElementById('empTelefone').value = e.telefone || '';
+  document.getElementById('empEndereco').value = e.endereco || '';
+  document.getElementById('modalEmpTitulo').textContent = 'Editar — ' + e.nome;
+  new bootstrap.Modal(document.getElementById('modalEmp')).show();
+}
+
+async function salvarEmpresa() {
+  const id = document.getElementById('empId').value;
+  const payload = {
+    nome: document.getElementById('empNome').value,
+    cnpj: document.getElementById('empCnpj').value,
+    telefone: document.getElementById('empTelefone').value,
+    endereco: document.getElementById('empEndereco').value,
+  };
+  if (!payload.nome) { toast('O nome é obrigatório.', 'error'); return; }
+  try {
+    await api(id ? `/api/empresa/${id}` : '/api/empresa', id ? 'PUT' : 'POST', payload);
+    toast('Empresa salva!');
+    setTimeout(() => location.reload(), 1000);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function desativar(id, nome) {
+  if (!confirm(`Remover "${nome}"? As prefeituras vinculadas perderão este vínculo.`)) return;
+  await api(`/api/empresa/${id}`, 'DELETE');
+  toast('Empresa removida.');
+  setTimeout(() => location.reload(), 1000);
+}
+</script>
+{% endblock %}

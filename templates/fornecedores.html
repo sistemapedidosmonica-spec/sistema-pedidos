@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}Fornecedores{% endblock %}
+{% block page_title %}Fornecedores{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <i class="bi bi-people-fill" style="color:#16A34A;"></i>
+        Fornecedores Cadastrados
+        <span class="badge" style="background:#F1F5F9;color:#475569;">{{ fornecedores|length }}</span>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="abrirModal()">
+        <i class="bi bi-plus-circle"></i> Novo Fornecedor
+      </button>
+    </div>
+
+    {% if fornecedores %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>WhatsApp</th>
+            <th>Categorias</th>
+            <th>Status</th>
+            <th style="width:90px;">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in fornecedores %}
+          <tr>
+            <td><strong>{{ f.nome }}</strong></td>
+            <td>
+              {% if f.telefone_whatsapp %}
+              <span style="color:#16A34A;font-size:13px;"><i class="bi bi-whatsapp"></i> {{ f.telefone_whatsapp }}</span>
+              {% else %}
+              <span style="color:var(--text-muted);font-size:13px;">— (adicionar número)</span>
+              {% endif %}
+            </td>
+            <td style="font-size:12px;">
+              {% if f.categorias %}
+                {% for cat in f.categorias.split(',') %}
+                  {% if cat.strip() == 'genero' %}<span class="badge" style="background:#DBEAFE;color:#1D4ED8;margin:2px;">🛒 Gênero</span>
+                  {% elif cat.strip() == 'carne' %}<span class="badge" style="background:#FEE2E2;color:#DC2626;margin:2px;">🥩 Carne</span>
+                  {% elif cat.strip() == 'limpeza' %}<span class="badge" style="background:#F3E8FF;color:#7C3AED;margin:2px;">🧹 Limpeza</span>
+                  {% elif cat.strip() == 'hortifruti' %}<span class="badge" style="background:#DCFCE7;color:#166534;margin:2px;">🥦 Horti</span>
+                  {% elif cat.strip() == 'uniforme' %}<span class="badge" style="background:#FEF9C3;color:#92400E;margin:2px;">👕 Uniforme</span>
+                  {% endif %}
+                {% endfor %}
+              {% else %}
+                <span style="color:var(--text-muted);">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if f.ativo %}<span class="badge badge-ativo"><i class="bi bi-circle-fill" style="font-size:7px;"></i> Ativo</span>
+              {% else %}<span class="badge badge-inativo">Inativo</span>{% endif %}
+            </td>
+            <td>
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-secondary btn-sm btn-icon"
+                  onclick='editarFornecedor({{ f.to_dict()|tojson }})' title="Editar">
+                  <i class="bi bi-pencil-fill"></i>
+                </button>
+                <button class="btn btn-sm btn-icon"
+                  style="background:#FFF1F2;color:#DC2626;border:1px solid #FECACA;"
+                  onclick="desativar({{ f.id }}, '{{ f.nome }}')" title="Remover">
+                  <i class="bi bi-trash-fill"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bi bi-people"></i></div>
+      <h3>Nenhum fornecedor cadastrado</h3>
+      <p>Cadastre seus fornecedores para registrar preços e gerar mensagens de cotação pelo WhatsApp.</p>
+      <button class="btn btn-primary" onclick="abrirModal()">
+        <i class="bi bi-plus-circle"></i> Cadastrar Fornecedor
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal fade" id="modalForn" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title" id="modalFornTitulo">Novo Fornecedor</div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="fornId">
+        <div style="margin-bottom:16px;">
+          <label class="form-label">Nome <span class="required">*</span></label>
+          <input type="text" class="form-control" id="fornNome" placeholder="Ex: João do CEASA, Atacadão Central">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label class="form-label">WhatsApp para Cotação</label>
+          <div class="input-group">
+            <span style="padding:9px 12px;background:#F8FAFC;border:1.5px solid var(--border);border-right:none;border-radius:8px 0 0 8px;color:#22C55E;">
+              <i class="bi bi-whatsapp"></i>
+            </span>
+            <input type="text" class="form-control" id="fornWhats"
+              placeholder="(34) 9xxxx-xxxx" style="border-radius:0 8px 8px 0;">
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+            O sistema vai gerar a mensagem de cotação automaticamente para este número
+          </div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label class="form-label">Tipo de Fornecedor</label>
+          <select class="form-select" id="fornTipo">
+            <option value="local">🏪 Local — compras na cidade</option>
+            <option value="ceasa">🌿 CEASA — atacado de hortifruti</option>
+            <option value="ambos">↕️ Ambos</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Categorias que este fornecedor atende</label>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;padding:10px;background:#F8FAFC;border:1.5px solid var(--border);border-radius:8px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;">
+              <input type="checkbox" id="catGenero" value="genero"> 🛒 Gênero (secos, laticínios)
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;">
+              <input type="checkbox" id="catCarne" value="carne"> 🥩 Carne
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;">
+              <input type="checkbox" id="catLimpeza" value="limpeza"> 🧹 Material de Limpeza
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;">
+              <input type="checkbox" id="catHorti" value="hortifruti"> 🥦 Hortifruti
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;">
+              <input type="checkbox" id="catUniforme" value="uniforme"> 👕 Uniforme
+            </label>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+            O sistema filtrará os itens da lista de compras conforme as categorias marcadas
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvarFornecedor()">
+          <i class="bi bi-check-lg"></i> Salvar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CAT_IDS = ['catGenero','catCarne','catLimpeza','catHorti','catUniforme'];
+
+function setCategorias(cats) {
+  const lista = (cats || '').split(',').map(c => c.trim()).filter(Boolean);
+  CAT_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    el.checked = lista.includes(el.value);
+  });
+}
+
+function getCategorias() {
+  return CAT_IDS.map(id => document.getElementById(id))
+    .filter(el => el.checked).map(el => el.value).join(',');
+}
+
+function abrirModal() {
+  document.getElementById('fornId').value = '';
+  document.getElementById('fornNome').value = '';
+  document.getElementById('fornWhats').value = '';
+  document.getElementById('fornTipo').value = 'local';
+  setCategorias('');
+  document.getElementById('modalFornTitulo').textContent = 'Novo Fornecedor';
+  new bootstrap.Modal(document.getElementById('modalForn')).show();
+}
+
+function editarFornecedor(f) {
+  document.getElementById('fornId').value = f.id;
+  document.getElementById('fornNome').value = f.nome || '';
+  document.getElementById('fornWhats').value = f.telefone_whatsapp || '';
+  document.getElementById('fornTipo').value = f.tipo || 'local';
+  setCategorias(f.categorias || '');
+  document.getElementById('modalFornTitulo').textContent = 'Editar Fornecedor';
+  new bootstrap.Modal(document.getElementById('modalForn')).show();
+}
+
+async function salvarFornecedor() {
+  const id = document.getElementById('fornId').value;
+  const payload = {
+    nome: document.getElementById('fornNome').value,
+    telefone_whatsapp: document.getElementById('fornWhats').value,
+    tipo: document.getElementById('fornTipo').value,
+    categorias: getCategorias(),
+  };
+  if (!payload.nome) { toast('O nome é obrigatório.', 'error'); return; }
+  try {
+    await api(id ? `/api/fornecedor/${id}` : '/api/fornecedor', id ? 'PUT' : 'POST', payload);
+    toast('Fornecedor salvo!');
+    setTimeout(() => location.reload(), 1000);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function desativar(id, nome) {
+  if (!confirm(`Remover "${nome}"?`)) return;
+  await api(`/api/fornecedor/${id}`, 'DELETE');
+  toast('Fornecedor removido.');
+  setTimeout(() => location.reload(), 1000);
+}
+</script>
+{% endblock %}

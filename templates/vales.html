@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Vales de Entrega{% endblock %}
+{% block page_title %}Vales de Entrega{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+  <div class="row g-4">
+
+    <!-- GERAR VALE -->
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="bi bi-file-earmark-plus-fill" style="color:#16A34A;"></i>
+            Gerar Novo Vale
+          </div>
+        </div>
+        <div class="card-body" style="padding:0;">
+          {% if pedidos %}
+          <div style="padding:12px 16px;background:#F8FAFC;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">
+            Selecione o pedido
+          </div>
+          {% for p in pedidos %}
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #F1F5F9;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;color:var(--text-primary);">
+                {{ p.prefeitura.nome if p.prefeitura else '—' }}
+              </div>
+              {% if p.empresa %}
+              <div style="font-size:11px;color:#7C3AED;margin-top:1px;">
+                <i class="bi bi-buildings-fill"></i> {{ p.empresa.nome }}
+              </div>
+              {% endif %}
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+                {{ p.itens|length }} item(ns)
+                {% if p.data_entrega %} · Entrega: {{ p.data_entrega }}{% endif %}
+                · {{ p.criado_em.strftime('%d/%m/%Y') if p.criado_em else '' }}
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="gerarVale({{ p.id }})">
+              <i class="bi bi-file-earmark-pdf-fill"></i> Gerar PDF
+            </button>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="empty-state">
+            <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+            <h3>Nenhum pedido disponível</h3>
+            <p>Importe pedidos pelo email primeiro.</p>
+            <a href="/emails" class="btn btn-primary">Ir para Emails</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- VALES EMITIDOS -->
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="bi bi-collection-fill" style="color:#7C3AED;"></i>
+            Vales Emitidos
+            <span class="badge" style="background:#F1F5F9;color:#475569;">{{ vales|length }}</span>
+          </div>
+        </div>
+        {% if vales %}
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Nº Vale</th>
+                <th>Prefeitura</th>
+                <th>Empresa</th>
+                <th>Emitido em</th>
+                <th>Valor Total</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for v in vales %}
+              <tr>
+                <td>
+                  <span class="badge" style="background:#EDE9FE;color:#5B21B6;font-size:12px;font-family:monospace;">
+                    {{ v.numero_vale }}
+                  </span>
+                </td>
+                <td>
+                  <strong>{{ v.pedido.prefeitura.nome if v.pedido and v.pedido.prefeitura else '—' }}</strong>
+                </td>
+                <td style="font-size:13px;color:#7C3AED;">
+                  {% if v.pedido and v.pedido.empresa %}
+                  <i class="bi bi-buildings-fill"></i> {{ v.pedido.empresa.nome }}
+                  {% else %}
+                  <span style="color:var(--text-muted);">—</span>
+                  {% endif %}
+                </td>
+                <td style="font-size:13px;color:var(--text-secondary);">
+                  {{ v.data_emissao.strftime('%d/%m/%Y') if v.data_emissao else '—' }}
+                </td>
+                <td>
+                  {% if v.valor_total and v.valor_total > 0 %}
+                  <span style="font-weight:700;color:#16A34A;">
+                    R$ {{ '%.2f'|format(v.valor_total)|replace('.',',') }}
+                  </span>
+                  {% else %}
+                  <span style="color:var(--text-muted);">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <a href="/api/vale/download/{{ v.id }}" class="btn btn-sm"
+                       style="background:#FFF1F2;color:#DC2626;border:1px solid #FECACA;" title="Baixar PDF">
+                      <i class="bi bi-download"></i> PDF
+                    </a>
+                    <button class="btn btn-secondary btn-sm btn-icon" onclick="gerarVale({{ v.pedido_id }})" title="Regerar vale">
+                      <i class="bi bi-arrow-repeat"></i>
+                    </button>
+                    {% if v.pedido and v.pedido.status != 'entregue' %}
+                    <button class="btn btn-sm" style="background:#DCFCE7;color:#16A34A;border:1px solid #BBF7D0;"
+                      onclick="marcarEntregue({{ v.pedido_id }})" title="Marcar como entregue">
+                      <i class="bi bi-check2-all"></i> Entregue
+                    </button>
+                    {% else %}
+                    <span style="color:#16A34A;font-size:12px;padding:4px 6px;"><i class="bi bi-check-circle-fill"></i> Entregue</span>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="empty-icon"><i class="bi bi-file-earmark-x"></i></div>
+          <h3>Nenhum vale emitido</h3>
+          <p>Selecione um pedido ao lado para gerar o primeiro vale.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <p>Gerando Vale de Entrega...</p>
+    <small>Criando PDF, aguarde</small>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function gerarVale(pedidoId) {
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  try {
+    const data = await api(`/api/vale/gerar/${pedidoId}`, 'POST');
+    toast(`Vale ${data.numero_vale} gerado com sucesso!`);
+    setTimeout(() => location.reload(), 1500);
+  } catch(e) {
+    toast('Erro ao gerar vale: ' + e.message, 'error');
+  } finally {
+    document.getElementById('loadingOverlay').style.display = 'none';
+  }
+}
+
+async function marcarEntregue(pedidoId) {
+  if (!confirm('Confirmar entrega deste pedido?')) return;
+  await api(`/api/pedido/${pedidoId}/entregar`, 'POST');
+  toast('Pedido marcado como entregue!');
+  setTimeout(() => location.reload(), 1200);
+}
+</script>
+{% endblock %}

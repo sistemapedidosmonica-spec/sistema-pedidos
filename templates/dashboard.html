@@ -1,0 +1,431 @@
+{% extends "base.html" %}
+{% block title %}Início{% endblock %}
+{% block page_title %}Painel Principal{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+
+  <!-- ALERTA SEXTA-FEIRA -->
+  <div id="alerta-sexta" style="display:none;background:#DC2626;color:#fff;padding:14px 20px;border-radius:12px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
+    <i class="bi bi-exclamation-triangle-fill" style="font-size:22px;flex-shrink:0;"></i>
+    <div>
+      <strong style="font-size:15px;">PRAZO HOJE! Tudo deve estar pronto até 16:30</strong>
+      <div style="font-size:13px;opacity:.9;" id="alerta-sexta-sub"></div>
+    </div>
+  </div>
+
+  <!-- BANNER DE BOAS-VINDAS -->
+  <div class="welcome-banner">
+    <div class="welcome-icon">🌿</div>
+    <div class="welcome-text">
+      <h2>Bem-vinda, Mônica Lobo!</h2>
+      <p>{{ config.nome_empresa }} — Pedidos · Compras · Vales de Entrega · Tudo em um só lugar.</p>
+    </div>
+    <div style="margin-left:auto;font-size:13px;color:rgba(255,255,255,0.7);text-align:right;line-height:1.6;">
+      <div id="proxima-sexta" style="font-weight:600;color:#fff;"></div>
+      <div id="busca-info">Busca automática: seg-sex às 08h, 12h e 16h</div>
+    </div>
+  </div>
+
+  <!-- PAINEL DE FLUXO DA SEMANA -->
+  <div class="card mb-4" style="border-color:#BBF7D0;">
+    <div class="card-header" style="background:#F0FDF4;">
+      <div class="card-title" style="color:#166534;">
+        <i class="bi bi-diagram-3-fill" style="color:#16A34A;"></i>
+        Fluxo da Semana — O que falta fazer?
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="buscarEmailsAgora()">
+        <i class="bi bi-envelope-arrow-down-fill"></i> Buscar Emails Agora
+      </button>
+    </div>
+    <div id="fluxoLoading" style="padding:20px;text-align:center;color:var(--text-muted);">
+      <div class="spinner" style="width:22px;height:22px;border-width:2px;margin:0 auto 8px;"></div>
+      Carregando...
+    </div>
+    <div id="fluxoPanel" style="display:none;">
+      <div style="display:flex;flex-wrap:wrap;gap:0;border-top:1px solid #DCFCE7;">
+
+        <!-- PASSO 1 -->
+        <div class="fluxo-passo" id="passo1">
+          <div class="fluxo-num">1</div>
+          <div class="fluxo-body">
+            <div class="fluxo-titulo">Buscar Emails</div>
+            <div class="fluxo-sub" id="passo1-sub">—</div>
+          </div>
+          <div class="fluxo-acao">
+            <a href="/emails" class="btn btn-sm btn-secondary">Ir para Emails</a>
+          </div>
+        </div>
+
+        <!-- PASSO 2 -->
+        <div class="fluxo-passo" id="passo2">
+          <div class="fluxo-num">2</div>
+          <div class="fluxo-body">
+            <div class="fluxo-titulo">Montar Lista de Compras</div>
+            <div class="fluxo-sub" id="passo2-sub">—</div>
+          </div>
+          <div class="fluxo-acao">
+            <a href="/compras" class="btn btn-sm btn-secondary">Ir para Compras</a>
+          </div>
+        </div>
+
+        <!-- PASSO 3 -->
+        <div class="fluxo-passo" id="passo3">
+          <div class="fluxo-num">3</div>
+          <div class="fluxo-body">
+            <div class="fluxo-titulo">Enviar WhatsApp aos Fornecedores</div>
+            <div class="fluxo-sub" id="passo3-sub">—</div>
+          </div>
+          <div class="fluxo-acao" id="passo3-btns"></div>
+        </div>
+
+        <!-- PASSO 4 -->
+        <div class="fluxo-passo" id="passo4">
+          <div class="fluxo-num">4</div>
+          <div class="fluxo-body">
+            <div class="fluxo-titulo">Registrar Preços (Cotação)</div>
+            <div class="fluxo-sub" id="passo4-sub">—</div>
+          </div>
+          <div class="fluxo-acao">
+            <a href="/compras" class="btn btn-sm btn-secondary">Registrar Preços</a>
+          </div>
+        </div>
+
+        <!-- PASSO 5 -->
+        <div class="fluxo-passo" id="passo5" style="border-bottom:none;">
+          <div class="fluxo-num">5</div>
+          <div class="fluxo-body">
+            <div class="fluxo-titulo">Gerar Vales de Entrega</div>
+            <div class="fluxo-sub" id="passo5-sub">—</div>
+          </div>
+          <div class="fluxo-acao">
+            <a href="/vales" class="btn btn-sm btn-secondary">Ir para Vales</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div id="buscarResult" style="display:none;padding:12px 20px;"></div>
+  </div>
+
+  <!-- ESTATÍSTICAS (clicáveis) -->
+  <div class="stat-grid">
+    <a href="/emails" class="stat-card azul">
+      <div class="stat-top">
+        <div>
+          <div class="stat-value">{{ pedidos_novos }}</div>
+          <div class="stat-label">Pedidos Novos</div>
+        </div>
+        <div class="stat-icon"><i class="bi bi-envelope-fill"></i></div>
+      </div>
+      <div class="stat-footer"><i class="bi bi-arrow-right-circle"></i> Clique para ver os emails</div>
+    </a>
+
+    <a href="/emails" class="stat-card laranja">
+      <div class="stat-top">
+        <div>
+          <div class="stat-value">{{ pedidos_processados }}</div>
+          <div class="stat-label">Em Andamento</div>
+        </div>
+        <div class="stat-icon"><i class="bi bi-clock-fill"></i></div>
+      </div>
+      <div class="stat-footer"><i class="bi bi-arrow-right-circle"></i> Clique para ver pedidos</div>
+    </a>
+
+    <a href="/vales" class="stat-card verde">
+      <div class="stat-top">
+        <div>
+          <div class="stat-value">{{ pedidos_comprado }}</div>
+          <div class="stat-label">Prontos p/ Entrega</div>
+        </div>
+        <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+      </div>
+      <div class="stat-footer"><i class="bi bi-arrow-right-circle"></i> Clique para gerar vales</div>
+    </a>
+
+    <a href="/prefeituras" class="stat-card roxo">
+      <div class="stat-top">
+        <div>
+          <div class="stat-value">{{ prefeituras_ativas }}</div>
+          <div class="stat-label">Prefeituras</div>
+        </div>
+        <div class="stat-icon"><i class="bi bi-building-fill"></i></div>
+      </div>
+      <div class="stat-footer"><i class="bi bi-arrow-right-circle"></i> Clique para gerenciar</div>
+    </a>
+  </div>
+
+  <!-- PEDIDOS RECENTES -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <i class="bi bi-clock-history" style="color:#64748B;"></i>
+        Últimos Pedidos Recebidos
+      </div>
+      <a href="/emails" class="btn btn-secondary btn-sm">Ver todos</a>
+    </div>
+
+    {% if pedidos_recentes %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Prefeitura</th>
+            <th>Recebido</th>
+            <th>Itens</th>
+            <th>Entrega</th>
+            <th>Status</th>
+            <th style="width:110px;">Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in pedidos_recentes %}
+          <tr id="pedido-row-{{ p.id }}">
+            <td>
+              <div style="font-weight:600;">{{ p.prefeitura.nome if p.prefeitura else '—' }}</div>
+              <div style="font-size:12px;color:var(--text-muted);">{{ p.assunto_email[:40] if p.assunto_email else '' }}</div>
+            </td>
+            <td style="color:var(--text-secondary);font-size:13px;">
+              {{ p.criado_em.strftime('%d/%m/%Y') if p.criado_em else '—' }}
+            </td>
+            <td>
+              <span class="badge" style="background:#F1F5F9;color:#475569;">{{ p.itens|length }} itens</span>
+            </td>
+            <td style="font-size:13px;color:var(--text-secondary);">{{ p.data_entrega or '—' }}</td>
+            <td>
+              {% if p.status == 'novo' %}<span class="badge badge-novo">Novo</span>
+              {% elif p.status == 'processado' %}<span class="badge badge-processado">Em andamento</span>
+              {% elif p.status == 'comprado' %}<span class="badge badge-comprado">Comprado</span>
+              {% else %}<span class="badge badge-entregue">Entregue</span>{% endif %}
+            </td>
+            <td>
+              {% if p.status == 'comprado' %}
+              <button class="btn btn-sm btn-primary" onclick="marcarEntregue({{ p.id }})">
+                <i class="bi bi-check2-all"></i> Entregue
+              </button>
+              {% elif p.status != 'entregue' %}
+              <a href="/emails" class="btn btn-sm btn-secondary">Ver</a>
+              {% else %}
+              <span style="color:#16A34A;font-size:13px;"><i class="bi bi-check-circle-fill"></i> Concluído</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+      <h3>Nenhum pedido ainda</h3>
+      <p>Configure o email e clique em "Buscar Emails Agora" para começar.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.fluxo-passo {
+  display:flex;align-items:center;gap:16px;
+  padding:16px 20px;border-bottom:1px solid #DCFCE7;
+  width:100%;transition:background .15s;
+}
+.fluxo-passo:hover { background:#F7FFF7; }
+.fluxo-num {
+  width:36px;height:36px;border-radius:50%;
+  background:#E2E8F0;color:#94A3B8;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:15px;flex-shrink:0;
+  transition:all .2s;
+}
+.fluxo-num.ok { background:#DCFCE7;color:#16A34A; }
+.fluxo-num.pendente { background:#FEF9C3;color:#CA8A04; }
+.fluxo-num.aguardando { background:#F1F5F9;color:#94A3B8; }
+.fluxo-body { flex:1;min-width:0; }
+.fluxo-titulo { font-weight:700;font-size:14px;color:var(--text-primary); }
+.fluxo-sub { font-size:12px;color:var(--text-muted);margin-top:2px; }
+.fluxo-acao { flex-shrink:0; }
+.fluxo-passo.ok-row { background:#F0FDF4; }
+.fluxo-passo.pendente-row { background:#FFFBEB; }
+</style>
+<script>
+async function carregarFluxo() {
+  const data = await api('/api/fluxo-semana');
+  document.getElementById('fluxoLoading').style.display = 'none';
+  document.getElementById('fluxoPanel').style.display = 'block';
+
+  const ok = (id) => {
+    document.getElementById(id).classList.add('ok-row');
+    document.getElementById(id+'-num') && (document.getElementById(id+'-num').className = 'fluxo-num ok');
+    document.querySelectorAll(`#${id} .fluxo-num`).forEach(el => el.className = 'fluxo-num ok');
+  };
+  const pendente = (id) => {
+    document.getElementById(id).classList.add('pendente-row');
+    document.querySelectorAll(`#${id} .fluxo-num`).forEach(el => el.className = 'fluxo-num pendente');
+  };
+  const setIcon = (passoId, tipo) => {
+    const el = document.querySelector(`#${passoId} .fluxo-num`);
+    if (!el) return;
+    if (tipo === 'ok') { el.className = 'fluxo-num ok'; el.innerHTML = '<i class="bi bi-check-lg"></i>'; }
+    else if (tipo === 'pendente') { el.className = 'fluxo-num pendente'; }
+    else { el.className = 'fluxo-num aguardando'; }
+  };
+
+  // Passo 1 — Emails
+  if (data.total_pedidos > 0) {
+    document.getElementById('passo1-sub').textContent = `${data.total_pedidos} pedido(s) importado(s)`;
+    setIcon('passo1', 'ok');
+    document.getElementById('passo1').classList.add('ok-row');
+  } else {
+    document.getElementById('passo1-sub').textContent = 'Nenhum pedido importado ainda esta semana';
+    setIcon('passo1', 'pendente');
+    document.getElementById('passo1').classList.add('pendente-row');
+  }
+
+  // Passo 2 — Lista
+  if (data.lista_id) {
+    document.getElementById('passo2-sub').textContent = `Lista montada com ${data.lista_itens} item(ns) — status: ${data.lista_status}`;
+    setIcon('passo2', 'ok');
+    document.getElementById('passo2').classList.add('ok-row');
+    // Atualiza link para a lista atual
+    document.querySelector('#passo2 .fluxo-acao a').href = '/compras';
+  } else if (data.total_pedidos > 0) {
+    document.getElementById('passo2-sub').textContent = 'Pedidos importados — clique para montar a lista';
+    setIcon('passo2', 'pendente');
+    document.getElementById('passo2').classList.add('pendente-row');
+  } else {
+    document.getElementById('passo2-sub').textContent = 'Aguardando importação dos pedidos';
+    setIcon('passo2', 'aguardando');
+  }
+
+  // Passo 3 — WhatsApp fornecedores
+  const btns = document.getElementById('passo3-btns');
+  if (data.lista_id && data.fornecedores.length > 0) {
+    document.getElementById('passo3-sub').textContent = `Enviar para ${data.fornecedores.map(f=>f.nome).join(' e ')}`;
+    setIcon('passo3', 'pendente');
+    document.getElementById('passo3').classList.add('pendente-row');
+    btns.innerHTML = data.fornecedores.map(f =>
+      `<a href="/compras" class="btn btn-whats btn-sm" style="margin:2px;"><i class="bi bi-whatsapp"></i> ${f.nome}</a>`
+    ).join('');
+  } else if (!data.lista_id) {
+    document.getElementById('passo3-sub').textContent = 'Aguardando lista de compras';
+    setIcon('passo3', 'aguardando');
+    btns.innerHTML = '<a href="/compras" class="btn btn-sm btn-secondary">Ir para Compras</a>';
+  } else {
+    document.getElementById('passo3-sub').textContent = 'Cadastre fornecedores com WhatsApp em Fornecedores';
+    setIcon('passo3', 'aguardando');
+    btns.innerHTML = '<a href="/fornecedores" class="btn btn-sm btn-secondary">Fornecedores</a>';
+  }
+
+  // Passo 4 — Cotação
+  if (data.lista_status === 'cotacao' || data.lista_status === 'finalizada') {
+    document.getElementById('passo4-sub').textContent = 'Preços registrados';
+    setIcon('passo4', 'ok');
+    document.getElementById('passo4').classList.add('ok-row');
+  } else if (data.lista_id) {
+    document.getElementById('passo4-sub').textContent = 'Registre os preços após receber as respostas do WhatsApp';
+    setIcon('passo4', 'pendente');
+    document.getElementById('passo4').classList.add('pendente-row');
+  } else {
+    document.getElementById('passo4-sub').textContent = 'Aguardando lista de compras';
+    setIcon('passo4', 'aguardando');
+  }
+
+  // Passo 5 — Vales
+  if (data.vales_gerados > 0) {
+    document.getElementById('passo5-sub').textContent = `${data.vales_gerados} vale(s) gerado(s)`;
+    setIcon('passo5', 'ok');
+    document.getElementById('passo5').classList.add('ok-row');
+  } else if (data.total_pedidos > 0) {
+    document.getElementById('passo5-sub').textContent = 'Gere um vale de entrega para cada prefeitura';
+    setIcon('passo5', 'pendente');
+    document.getElementById('passo5').classList.add('pendente-row');
+  } else {
+    document.getElementById('passo5-sub').textContent = 'Aguardando pedidos importados';
+    setIcon('passo5', 'aguardando');
+  }
+}
+
+async function buscarEmailsAgora() {
+  const btn = event.target.closest('button');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span> Buscando...';
+  btn.disabled = true;
+  const res = document.getElementById('buscarResult');
+  res.style.display = 'none';
+  try {
+    const data = await api('/api/emails/buscar', 'POST');
+    res.style.display = 'block';
+    res.innerHTML = `<div class="alert alert-success mb-0"><i class="bi bi-check-circle-fill"></i> ${data.mensagem}</div>`;
+    setTimeout(() => location.reload(), 2000);
+  } catch(e) {
+    res.style.display = 'block';
+    res.innerHTML = `<div class="alert alert-warning mb-0"><i class="bi bi-exclamation-circle"></i> ${e.message}</div>`;
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  }
+}
+
+async function marcarEntregue(pedidoId) {
+  if (!confirm('Marcar este pedido como ENTREGUE?')) return;
+  await api(`/api/pedido/${pedidoId}/entregar`, 'POST');
+  toast('Pedido marcado como entregue!');
+  setTimeout(() => location.reload(), 1200);
+}
+
+// Calcula próxima sexta-feira
+function proximaSexta() {
+  const hoje = new Date();
+  const diaSemana = hoje.getDay(); // 0=dom, 5=sex
+  const diasAte = (5 - diaSemana + 7) % 7 || 7;
+  const proxSex = new Date(hoje);
+  proxSex.setDate(hoje.getDate() + diasAte);
+  const opts = { weekday:'long', day:'2-digit', month:'2-digit' };
+  return proxSex.toLocaleDateString('pt-BR', opts);
+}
+
+// Verifica alerta de sexta-feira com prazo 16:30
+function verificarAlertaSexta() {
+  const agora = new Date();
+  const diaSemana = agora.getDay(); // 5 = sexta
+  const hora = agora.getHours();
+  const minuto = agora.getMinutes();
+  const minutosAgora = hora * 60 + minuto;
+  const prazo = 16 * 60 + 30; // 16:30
+
+  const alertaEl = document.getElementById('alerta-sexta');
+  const subEl = document.getElementById('alerta-sexta-sub');
+  const proximaEl = document.getElementById('proxima-sexta');
+
+  if (diaSemana === 5) { // É sexta
+    if (minutosAgora < prazo) {
+      const minutosRestantes = prazo - minutosAgora;
+      const horas = Math.floor(minutosRestantes / 60);
+      const mins = minutosRestantes % 60;
+      alertaEl.style.display = 'flex';
+      subEl.textContent = horas > 0
+        ? `Faltam ${horas}h${mins}min para o prazo. Verifique a lista de compras e envie os WhatsApps!`
+        : `Faltam apenas ${mins} minutos! Envie os WhatsApps para Thales e MartMinas agora!`;
+      proximaEl.textContent = 'HOJE é sexta-feira — prazo às 16:30!';
+    } else {
+      alertaEl.style.display = 'flex';
+      alertaEl.style.background = '#92400E';
+      subEl.textContent = 'O prazo das 16:30 já passou. Verifique se tudo foi enviado.';
+      proximaEl.textContent = 'Prazo de hoje encerrado';
+    }
+  } else {
+    alertaEl.style.display = 'none';
+    proximaEl.textContent = 'Próxima: ' + proximaSexta();
+  }
+}
+
+verificarAlertaSexta();
+// Atualiza o alerta a cada minuto
+setInterval(verificarAlertaSexta, 60000);
+
+carregarFluxo();
+</script>
+{% endblock %}
