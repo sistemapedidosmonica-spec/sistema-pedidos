@@ -97,10 +97,6 @@ def _inicializar_dados():
 with app.app_context():
     _inicializar_dados()
 
-# Inicia agendador (funciona tanto no gunicorn quanto no flask dev server)
-_t_agendador = threading.Thread(target=_agendador_diario, daemon=True)
-_t_agendador.start()
-
 
 def get_config():
     cfg = ConfiguracaoGeral.query.first()
@@ -1116,10 +1112,11 @@ def _agendador_diario():
             time.sleep(900)
 
 
+# Inicia agendador após definição da função (funciona no gunicorn e no flask dev)
+_t_agendador = threading.Thread(target=_agendador_diario, daemon=True)
+_t_agendador.start()
+
 if __name__ == '__main__':
-    # Inicia agendador de busca automática
-    t = threading.Thread(target=_agendador_diario, daemon=True)
-    t.start()
     print('  Agendador ativo: busca automatica diaria (08:00, 12:00, 16:00 dias uteis)')
 
     print('\n' + '='*55)
