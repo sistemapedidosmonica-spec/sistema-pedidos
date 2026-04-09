@@ -164,6 +164,131 @@ def emails():
     )
 
 
+@app.route('/api/webhook/email', methods=['POST'])
+def webhook_email():
+    """
+    Endpoint para receber emails via Google Apps Script.
+    O Apps Script lê o Gmail e envia o conteúdo aqui via HTTP POST.
+    Assim não precisamos de IMAP — funciona em qualquer hospedagem.
+    """
+    # Verifica token de segurança
+    token = request.headers.get('X-Webhook-Token') or request.json.get('token', '')
+    cfg = get_config()
+    webhook_token = cfg.webhook_token if hasattr(cfg, 'webhook_token') and cfg.webhook_token else 'monica2024'
+    if token != webhook_token:
+        return jsonify({'erro': 'Token inválido'}), 401
+
+    data = request.json or {}
+    emails_recebidos = data.get('emails', [])
+    if not emails_recebidos:
+        return jsonify({'mensagem': 'Nenhum email recebido', 'total': 0})
+
+    api_key = cfg.anthropic_api_key
+    emails_existentes = {p.email_id for p in Pedido.query.filter(Pedido.email_id.isnot(None)).all()}
+    todas_prefeituras = Prefeitura.query.filter_by(ativa=True).all()
+    todas_empresas = Empresa.query.filter_by(ativa=True).all()
+
+    novos_pedidos = []
+    for email_data in emails_recebidos:
+        email_id = email_data.get('email_id', '')
+        if email_id and email_id in emails_existentes:
+            continue  # já processado
+
+        assunto = email_data.get('assunto', '')
+        email_rem = email_data.get('email_remetente', '').lower()
+
+        prefeitura, empresa = extrair_empresa_prefeitura_do_assunto(
+            assunto, todas_prefeituras, todas_empresas)
+
+        if not prefeitura and not empresa:
+            e_pedido, motivo = email_e_pedido(email_data)
+            if not e_pedido and ' - ' not in assunto:
+                continue
+
+        resultado_ia = {}
+        if api_key:
+            resultado_ia = extrair_pedido_com_ia(email_data, api_key)
+
+        if not prefeitura:
+            prefeitura = _encontrar_prefeitura_webhook(resultado_ia.get('prefeitura_nome', ''), todas_prefeituras)
+        if not empresa:
+            empresa = _encontrar_empresa_webhook(resultado_ia.get('empresa_nome', ''), todas_empresas)
+        if prefeitura and not empresa and prefeitura.empresa_id:
+            empresa = Empresa.query.get(prefeitura.empresa_id)
+
+        if not prefeitura:
+            nome_pref = resultado_ia.get('prefeitura_nome') or assunto or f'Novo: {email_rem}'
+            prefeitura = Prefeitura(
+                nome=nome_pref, email=email_rem,
+                endereco='', contato='',
+                empresa_id=empresa.id if empresa else None
+            )
+            db.session.add(prefeitura)
+            db.session.flush()
+            todas_prefeituras.append(prefeitura)
+
+        if empresa and not prefeitura.empresa_id:
+            prefeitura.empresa_id = empresa.id
+
+        pedido = Pedido(
+            prefeitura_id=prefeitura.id,
+            empresa_id=empresa.id if empresa else None,
+            assunto_email=assunto,
+            email_id=email_id or None,
+            data_recebimento=datetime.now(),
+            email_remetente=email_rem,
+            corpo_email=email_data.get('texto_corpo', '').strip(),
+            data_entrega=resultado_ia.get('data_entrega'),
+            observacoes=resultado_ia.get('observacoes'),
+            status='novo'
+        )
+        db.session.add(pedido)
+        db.session.flush()
+
+        for item_data in resultado_ia.get('itens', []):
+            produto_nome = item_data.get('produto', '').strip()
+            if not produto_nome:
+                continue
+            destino = sugerir_destino_produto(produto_nome, api_key)
+            db.session.add(ItemPedido(
+                pedido_id=pedido.id,
+                produto=produto_nome,
+                quantidade=float(item_data.get('quantidade', 0)),
+                unidade=item_data.get('unidade', 'kg'),
+                observacao=item_data.get('observacao', ''),
+                destino=destino
+            ))
+
+        novos_pedidos.append({'prefeitura': prefeitura.nome, 'itens': len(resultado_ia.get('itens', []))})
+
+    db.session.commit()
+    return jsonify({'mensagem': f'{len(novos_pedidos)} pedido(s) importado(s)', 'total': len(novos_pedidos), 'pedidos': novos_pedidos})
+
+
+def _encontrar_prefeitura_webhook(nome_ia, todas_prefeituras):
+    if not nome_ia:
+        return None
+    nome_norm = _norm(nome_ia)
+    _SW = {'prefeitura', 'municipal', 'secretaria', 'municipio'}
+    melhor, melhor_score = None, 0
+    for p in todas_prefeituras:
+        kws = [_norm(w) for w in p.nome.split() if len(w) >= 3 and _norm(w) not in _SW]
+        score = sum(1 for kw in kws if kw in nome_norm)
+        if score > melhor_score:
+            melhor_score, melhor = score, p
+    return melhor if melhor_score >= 1 else None
+
+
+def _encontrar_empresa_webhook(nome_ia, todas_empresas):
+    if not nome_ia:
+        return None
+    nome_norm = _norm(nome_ia)
+    for e in todas_empresas:
+        if any(_norm(w) in nome_norm for w in e.nome.split() if len(w) >= 3):
+            return e
+    return None
+
+
 @app.route('/api/emails/buscar', methods=['POST'])
 def buscar_emails():
     email_cfgs = get_email_configs()
