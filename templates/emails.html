@@ -132,6 +132,18 @@
                   title="Ver email original completo">
                   <i class="bi bi-envelope-open-text-fill"></i>
                 </button>
+                <button class="btn btn-sm btn-icon"
+                  style="background:#F0FDF4;color:#16A34A;border:1px solid #BBF7D0;"
+                  onclick="reprocessarPedido({{ p.id }}, '{{ p.prefeitura.nome if p.prefeitura else '' }}')"
+                  title="Re-processar com IA (corrige itens errados)">
+                  <i class="bi bi-robot"></i>
+                </button>
+                <button class="btn btn-sm btn-icon"
+                  style="background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;"
+                  onclick="deletarPedido({{ p.id }}, '{{ p.prefeitura.nome if p.prefeitura else 'este pedido' }}')"
+                  title="Deletar pedido (para re-processar)">
+                  <i class="bi bi-trash-fill"></i>
+                </button>
               </div>
             </td>
           </tr>
@@ -395,6 +407,31 @@ function verItensDoEmail() {
   setTimeout(() => {
     verItens(emailAtualId, document.getElementById('emailPrefeitura').textContent);
   }, 300);
+}
+
+async function reprocessarPedido(pedidoId, nome) {
+  if (!confirm(`Re-processar o pedido de "${nome}" com a IA?\n\nOs itens atuais serão substituídos.`)) return;
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  try {
+    const data = await api(`/api/pedido/${pedidoId}/reprocessar`, 'POST');
+    toast(`✅ ${data.mensagem}`);
+    setTimeout(() => location.reload(), 2000);
+  } catch(e) {
+    alert('Erro: ' + e.message);
+  } finally {
+    document.getElementById('loadingOverlay').style.display = 'none';
+  }
+}
+
+async function deletarPedido(pedidoId, nome) {
+  if (!confirm(`Deletar o pedido de "${nome}"?\n\nDepois disso, rode o Apps Script novamente para re-processar com a IA corrigida.`)) return;
+  try {
+    await api(`/api/pedido/${pedidoId}/deletar`, 'POST');
+    toast('Pedido deletado! Agora rode o Apps Script para re-processar.');
+    setTimeout(() => location.reload(), 2000);
+  } catch(e) {
+    alert('Erro ao deletar: ' + e.message);
+  }
 }
 </script>
 {% endblock %}

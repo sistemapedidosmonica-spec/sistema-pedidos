@@ -13,7 +13,8 @@ from email_reader import ler_emails_novos, testar_conexao, detectar_servidor
 from ai_parser import (extrair_pedido_com_ia, gerar_mensagem_whatsapp,
                        gerar_mensagem_fornecedor, sugerir_categoria_produto,
                        sugerir_destino_produto, email_e_pedido,
-                       extrair_empresa_prefeitura_do_assunto, _norm)
+                       extrair_empresa_prefeitura_do_assunto, _norm,
+                       preparar_conteudo_email)
 from pdf_generator import gerar_vale_entrega, gerar_lista_compras
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -91,6 +92,60 @@ def _inicializar_dados():
             categorias='genero,limpeza,carne'
         ))
         db.session.commit()
+
+    # Cria as 3 empresas se não existirem
+    empresas_dados = [
+        'Profeta Distribuidora e Servicos',
+        'Eros Distribuidora',
+        'Fortumel Produtos'
+    ]
+    empresas_map = {}
+    for nome_emp in empresas_dados:
+        e = Empresa.query.filter(db.func.lower(Empresa.nome) == nome_emp.lower()).first()
+        if not e:
+            e = Empresa(nome=nome_emp, ativa=True)
+            db.session.add(e)
+            db.session.flush()
+        empresas_map[nome_emp] = e
+    db.session.commit()
+
+    # Recarrega o mapa após commit
+    for nome_emp in empresas_dados:
+        empresas_map[nome_emp] = Empresa.query.filter(db.func.lower(Empresa.nome) == nome_emp.lower()).first()
+
+    # Prefeituras da Profeta
+    profeta = empresas_map.get('Profeta Distribuidora e Servicos')
+    prefeituras_profeta = [
+        'Prefeitura Municipal de Casa Grande',
+        'Prefeitura Municipal de Queluzito',
+        'Prefeitura Municipal de Resende Costa',
+        'Prefeitura Municipal de Senhora dos Remedios',
+        'Prefeitura Municipal de Entre Rios de Minas',
+        'Prefeitura Municipal de Itavera',
+        'Prefeitura Municipal de Sao Bras do Suacui',
+    ]
+    for nome_pref in prefeituras_profeta:
+        existe = Prefeitura.query.filter(db.func.lower(Prefeitura.nome) == nome_pref.lower()).first()
+        if not existe and profeta:
+            db.session.add(Prefeitura(
+                nome=nome_pref, email='', endereco='', contato='',
+                empresa_id=profeta.id, ativa=True
+            ))
+
+    # Prefeituras da Eros
+    eros = empresas_map.get('Eros Distribuidora')
+    prefeituras_eros = [
+        'Prefeitura Municipal de Caranaiba',
+    ]
+    for nome_pref in prefeituras_eros:
+        existe = Prefeitura.query.filter(db.func.lower(Prefeitura.nome) == nome_pref.lower()).first()
+        if not existe and eros:
+            db.session.add(Prefeitura(
+                nome=nome_pref, email='', endereco='', contato='',
+                empresa_id=eros.id, ativa=True
+            ))
+
+    db.session.commit()
 
 
 # Inicializa ao importar (necessário para gunicorn/Render)
@@ -241,7 +296,7 @@ def webhook_email():
             email_id=email_id or None,
             data_recebimento=datetime.now(),
             email_remetente=email_rem,
-            corpo_email=email_data.get('texto_corpo', '').strip(),
+            corpo_email=preparar_conteudo_email(email_data),
             data_entrega=resultado_ia.get('data_entrega'),
             observacoes=resultado_ia.get('observacoes'),
             status='novo'
@@ -263,7 +318,7 @@ def webhook_email():
                 destino=destino
             ))
 
-        novos_pedidos.append({'prefeitura': prefeitura.nome, 'itens': len(resultado_ia.get('itens', []))})
+        novos_pedidos.append({'prefeitura': prefeitura.nome, 'itens': len(resultado_ia.get('itens', [])), 'erro_ia': resultado_ia.get('erro', '')})
 
     db.session.commit()
     return jsonify({'mensagem': f'{len(novos_pedidos)} pedido(s) importado(s)', 'total': len(novos_pedidos), 'pedidos': novos_pedidos})
@@ -1038,6 +1093,82 @@ def atualizar_status_pedido(pedido_id):
         pedido.status = novo_status
         db.session.commit()
     return jsonify({'ok': True, 'status': pedido.status})
+
+
+@app.route('/api/pedido/<int:pedido_id>/deletar', methods=['POST'])
+def deletar_pedido(pedido_id):
+    """Deleta um pedido e seus itens para permitir re-processamento."""
+    pedido = Pedido.query.get_or_404(pedido_id)
+    ItemPedido.query.filter_by(pedido_id=pedido_id).delete()
+    db.session.delete(pedido)
+    db.session.commit()
+    return jsonify({'ok': True, 'mensagem': 'Pedido deletado. Agora rode o Apps Script novamente para re-processar.'})
+
+
+@app.route('/api/pedido/<int:pedido_id>/reprocessar', methods=['POST'])
+def reprocessar_pedido(pedido_id):
+    """Re-processa um pedido com a IA usando o conteúdo já armazenado."""
+    pedido = Pedido.query.get_or_404(pedido_id)
+    cfg = get_config()
+    api_key = cfg.anthropic_api_key
+    if not api_key:
+        return jsonify({'erro': 'Chave da API não configurada. Vá em Configurações.'}), 400
+
+    # Usa o conteúdo já extraído e armazenado
+    conteudo = pedido.corpo_email or ''
+    if not conteudo.strip():
+        return jsonify({'erro': 'Email sem conteúdo armazenado. Delete e reenvie pelo Apps Script.'}), 400
+
+    # Monta um email_data sintético com o conteúdo já extraído
+    email_data_fake = {
+        'assunto': pedido.assunto_email or '',
+        'email_remetente': pedido.email_remetente or '',
+        'data_recebimento': '',
+        'texto_corpo': conteudo,
+        'anexos': []
+    }
+
+    resultado_ia = extrair_pedido_com_ia(email_data_fake, api_key)
+    if resultado_ia.get('erro'):
+        return jsonify({'erro': resultado_ia['erro']}), 500
+
+    # Remove itens antigos e adiciona novos
+    ItemPedido.query.filter_by(pedido_id=pedido_id).delete()
+
+    for item_data in resultado_ia.get('itens', []):
+        produto_nome = item_data.get('produto', '').strip()
+        if not produto_nome:
+            continue
+        destino = sugerir_destino_produto(produto_nome, api_key)
+        db.session.add(ItemPedido(
+            pedido_id=pedido.id,
+            produto=produto_nome,
+            quantidade=float(item_data.get('quantidade', 0)),
+            unidade=item_data.get('unidade', 'kg'),
+            observacao=item_data.get('observacao', ''),
+            destino=destino
+        ))
+
+    # Atualiza dados do pedido
+    if resultado_ia.get('data_entrega'):
+        pedido.data_entrega = resultado_ia['data_entrega']
+    if resultado_ia.get('observacoes'):
+        pedido.observacoes = resultado_ia['observacoes']
+
+    db.session.commit()
+    total_itens = len(resultado_ia.get('itens', []))
+    return jsonify({'ok': True, 'mensagem': f'Re-processado! {total_itens} itens extraídos.', 'total_itens': total_itens})
+
+
+@app.route('/api/setup/inicializar', methods=['POST'])
+def setup_inicializar():
+    """Endpoint para forçar re-inicialização dos dados padrão."""
+    token = request.json.get('token', '') if request.json else ''
+    if token != 'monica2024':
+        return jsonify({'erro': 'Token inválido'}), 401
+    with app.app_context():
+        _inicializar_dados()
+    return jsonify({'ok': True, 'mensagem': 'Dados inicializados com sucesso!'})
 
 
 @app.route('/api/fluxo-semana', methods=['GET'])
