@@ -186,6 +186,14 @@ def webhook_email():
 
     novos_pedidos = []
     for email_data in emails_recebidos:
+        # Converte anexos base64 para bytes (enviados pelo Apps Script)
+        import base64 as _base64
+        for anexo in email_data.get('anexos', []):
+            if 'dados_base64' in anexo and not anexo.get('dados'):
+                try:
+                    anexo['dados'] = _base64.b64decode(anexo['dados_base64'])
+                except Exception:
+                    anexo['dados'] = b''
         email_id = email_data.get('email_id', '')
         if email_id and email_id in emails_existentes:
             continue  # já processado

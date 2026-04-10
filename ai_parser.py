@@ -160,37 +160,99 @@ def extrair_texto_docx(dados_docx: bytes) -> str:
         return f'[Erro ao ler Word: {e}]'
 
 
+def extrair_texto_excel(dados_excel: bytes) -> str:
+    """Extrai texto de um arquivo Excel (.xls ou .xlsx) em bytes."""
+    try:
+        import openpyxl
+        import io
+        wb = openpyxl.load_workbook(io.BytesIO(dados_excel), read_only=True, data_only=True)
+        linhas = []
+        for sheet in wb.worksheets:
+            linhas.append(f'[Planilha: {sheet.title}]')
+            for row in sheet.iter_rows(values_only=True):
+                células = [str(c) for c in row if c is not None and str(c).strip()]
+                if células:
+                    linhas.append(' | '.join(células))
+        return '\n'.join(linhas)
+    except Exception:
+        try:
+            import xlrd, io
+            wb = xlrd.open_workbook(file_contents=dados_excel)
+            linhas = []
+            for sheet in wb.sheets():
+                linhas.append(f'[Planilha: {sheet.name}]')
+                for r in range(sheet.nrows):
+                    row = [str(sheet.cell_value(r, c)) for c in range(sheet.ncols)
+                           if str(sheet.cell_value(r, c)).strip()]
+                    if row:
+                        linhas.append(' | '.join(row))
+            return '\n'.join(linhas)
+        except Exception as e:
+            return f'[Erro ao ler Excel: {e}]'
+
+
 def preparar_conteudo_email(email_data: dict) -> str:
-    """Prepara o conteúdo completo de um email para enviar ao Claude."""
+    """
+    Prepara o conteúdo completo de um email para enviar ao Claude.
+
+    Suporta TODOS os formatos de pedido:
+    - Texto direto no corpo do email
+    - PDF anexado
+    - Word (.doc, .docx) anexado
+    - Excel (.xls, .xlsx) anexado
+    - CSV ou TXT anexado
+    - Qualquer combinação dos acima
+    """
     conteudo = f"Assunto: {email_data.get('assunto', '')}\n"
     conteudo += f"Remetente: {email_data.get('email_remetente', '')}\n"
     conteudo += f"Data: {email_data.get('data_recebimento', '')}\n\n"
-    conteudo += "=== CORPO DO EMAIL ===\n"
-    conteudo += email_data.get('texto_corpo', '') + '\n'
 
-    # Processa anexos
+    # Corpo do email (texto direto ou HTML)
+    corpo = email_data.get('texto_corpo', '') or ''
+    if corpo.strip():
+        conteudo += "=== CORPO DO EMAIL ===\n"
+        conteudo += corpo + '\n'
+
+    # Processa TODOS os anexos
     for anexo in email_data.get('anexos', []):
-        nome = anexo.get('nome', '').lower()
-        tipo = anexo.get('tipo', '').lower()
-        dados = anexo.get('dados', b'')
+        nome = anexo.get('nome', '')
+        nome_lower = nome.lower()
+        tipo = (anexo.get('tipo', '') or '').lower()
+        dados = anexo.get('dados', b'') or b''
 
-        conteudo += f"\n=== ANEXO: {anexo.get('nome', '')} ===\n"
+        if not dados:
+            continue
 
-        if 'pdf' in tipo or nome.endswith('.pdf'):
-            texto_pdf = extrair_texto_pdf(dados)
-            conteudo += texto_pdf
-        elif 'word' in tipo or nome.endswith('.docx'):
-            texto_word = extrair_texto_docx(dados)
-            conteudo += texto_word
-        elif 'text' in tipo:
+        conteudo += f"\n=== ANEXO: {nome} ===\n"
+
+        if 'pdf' in tipo or nome_lower.endswith('.pdf'):
+            conteudo += extrair_texto_pdf(dados)
+
+        elif 'word' in tipo or nome_lower.endswith('.docx') or nome_lower.endswith('.doc'):
+            conteudo += extrair_texto_docx(dados)
+
+        elif any(x in tipo for x in ['excel', 'sheet']) or \
+             nome_lower.endswith('.xlsx') or nome_lower.endswith('.xls'):
+            conteudo += extrair_texto_excel(dados)
+
+        elif 'text' in tipo or nome_lower.endswith('.csv') or nome_lower.endswith('.txt'):
             try:
                 conteudo += dados.decode('utf-8', errors='replace')
             except Exception:
-                conteudo += '[Não foi possível ler o anexo]'
-        else:
-            conteudo += f'[Anexo binário: {nome}]'
+                conteudo += '[Não foi possível ler o arquivo de texto]'
 
-    return conteudo[:15000]  # Limita para não estourar o contexto
+        else:
+            # Tenta ler como texto de qualquer forma
+            try:
+                texto = dados.decode('utf-8', errors='replace')
+                if texto.strip():
+                    conteudo += texto
+                else:
+                    conteudo += f'[Arquivo binário: {nome}]'
+            except Exception:
+                conteudo += f'[Arquivo não lido: {nome}]'
+
+    return conteudo[:20000]  # Limita para não estourar o contexto
 
 
 def extrair_empresa_prefeitura_do_assunto(assunto: str, prefeituras: list, empresas: list) -> tuple:
